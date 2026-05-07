@@ -2,7 +2,7 @@
 
 A working log of where we are and what comes next. This is for our future selves; the public-facing artifacts are `SPEC.md` and `README.md`.
 
-## Where we are (end of session 1)
+## Where we are (end of session 2)
 
 Done:
 - `SPEC.md` v1 drafted — three eval axes (Recall, Consolidation, Update), persona model, trace schema, scoring rubrics, judge model plan.
@@ -10,25 +10,16 @@ Done:
 - Core data types in `mnemos.types` (Persona, Fact, UpdateEvent, Session, Turn, Probe, Trace, ProbeScore) with passing schema tests.
 - `mnemos.protocol.MemorySystem` — the two-method contract every baseline implements.
 - `mnemos.personas.templates` — archetype templates. v1 fully specifies `early_stage_founder`; the other four are registered in `Archetype` enum and ready for templating.
-- `mnemos.personas.generate` — deterministic persona generation. 9 unit tests pass, including determinism, JSON round-trip, supersession linking, and update-session validity.
+- `mnemos.personas.generate` — deterministic persona generation.
+- `mnemos.probes.templates` — probe templates per axis (Recall direct/indirect/negative, Consolidation, Update with latency offsets).
+- `mnemos.probes.generate` — deterministic probe generation. Resolves rubric targets from a persona, anchors Update probes to update events that actually fired, clips latency variants that would land beyond the trace.
+- 21 unit tests pass across types, persona generation, and probe generation.
 
-The persona layer is real and reproducible: `generate_persona(EARLY_STAGE_FOUNDER, seed=2)` always produces the same Asha Patel with the same co-founder, the same scheduled "co-founder departs" event in session 6, and the same supersession links.
+The deterministic data layer is complete. `generate_persona(EARLY_STAGE_FOUNDER, seed=2)` always produces the same Asha Patel; `generate_probes(persona, num_sessions=6)` always produces the same 13 probes spread across the three axes. Repo is live at https://github.com/avikMall/mnemos.
 
 ## Up next, in order
 
-### 1. Probe templates and generator (task #8)
-
-Mirror the persona-generator design. For each axis, define probe templates that take a persona's facts and produce concrete probes:
-
-- **Recall:** `"Remind me what I told you about my co-founder."` with `rubric_targets=["co_founder_name"]`. Variants for direct ask, indirect dependency, and negative-recall (probing a topic that was never disclosed).
-- **Consolidation:** `"Looking at our conversations so far, what would you say is on my mind right now?"` with `rubric_targets=["emotional_undercurrent", "fundraising_stage"]`. The expected answer surfaces the latent theme.
-- **Update:** `"Catch me up — what's the situation with my co-founder?"` *after* the cofounder_departs event has been scheduled. Latency-binned: also issue the same probe k=1, k=3 sessions later.
-
-Determinism: probe IDs derived from `(persona_id, axis, template_id, instance_index)`. No LLM calls.
-
-Tests to write: probe targets reference actual fact keys; probes are scheduled after a sensible session (e.g., recall probes can't reference a fact not yet introduced); update-axis probes are placed only after the relevant update event.
-
-### 2. Trace generator (task #9)
+### 1. Trace generator (task #9)
 
 This is the first part that touches an LLM. Plan:
 
@@ -40,7 +31,7 @@ This is the first part that touches an LLM. Plan:
 
 Open question: do we want the stand-in agent to be the *same* model as the agent under test, or a different one? Lean toward "same family but vanilla prompting" — keeps cost predictable and avoids contamination.
 
-### 3. Three baseline memory systems (task #4)
+### 2. Three baseline memory systems (task #4)
 
 All three implement `MemorySystem` from `mnemos.protocol`.
 
@@ -60,14 +51,16 @@ All three implement `MemorySystem` from `mnemos.protocol`.
 - On `respond`, retrieve relevant summaries + facts and answer.
 - This is the most "agentic" memory architecture and we'd expect it to win on Update and lose on simple Recall (its summarization may compress away precise facts).
 
-### 4. Evaluator (task #5)
+### 3. Evaluator (task #5)
+
+Important detail: the evaluator must resolve fact values *as of the probe's session*, walking `persona.update_events` in order. A recall probe at session 6 about `co_founder_name`, on a persona where `cofounder_departs` fired in session 6, expects the post-update value as truth. Add this resolution helper to `mnemos.evals` when building the judge prompt.
 
 - Judge prompt template per axis (rubrics from SPEC §3).
 - 3 runs per probe, median, log inter-judge agreement.
 - Aggregate to per-axis means, per-archetype breakdowns, latency-binned numbers for Update.
 - Persist results to `results/<run-name>/results.json` with all model/version/SHA metadata.
 
-### 5. Writeup (task #6)
+### 4. Writeup (task #6)
 
 Structure:
 1. The problem (single-session vs. relationship)
@@ -81,7 +74,7 @@ Structure:
 
 Tone targets: technical, honest about limitations, not snarky. The Boardy paragraph should feel like a fan's note, not a critique.
 
-### 6. Verification + public push (task #7)
+### 5. Verification + public push (task #7)
 
 - Clean checkout, regenerate trace v1 set from seeds, re-run baselines, confirm identical aggregates (within judge variance).
 - Have a friend (or two) read the writeup specifically for tone in the Boardy section.
