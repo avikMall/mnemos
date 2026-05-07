@@ -2,34 +2,44 @@
 
 A working log of where we are and what comes next. This is for our future selves; the public-facing artifacts are `SPEC.md` and `README.md`.
 
-## Where we are (end of session 2)
+## Where we are (end of session 3)
 
 Done:
 - `SPEC.md` v1 drafted — three eval axes (Recall, Consolidation, Update), persona model, trace schema, scoring rubrics, judge model plan.
 - Repo scaffold: README, LICENSE (MIT), pyproject.toml, .gitignore, package layout under `src/mnemos/`.
-- Core data types in `mnemos.types` (Persona, Fact, UpdateEvent, Session, Turn, Probe, Trace, ProbeScore) with passing schema tests.
+- Core data types in `mnemos.types` with passing schema tests.
 - `mnemos.protocol.MemorySystem` — the two-method contract every baseline implements.
-- `mnemos.personas.templates` — archetype templates. v1 fully specifies `early_stage_founder`; the other four are registered in `Archetype` enum and ready for templating.
-- `mnemos.personas.generate` — deterministic persona generation.
-- `mnemos.probes.templates` — probe templates per axis (Recall direct/indirect/negative, Consolidation, Update with latency offsets).
-- `mnemos.probes.generate` — deterministic probe generation. Resolves rubric targets from a persona, anchors Update probes to update events that actually fired, clips latency variants that would land beyond the trace.
-- 21 unit tests pass across types, persona generation, and probe generation.
+- `mnemos.personas.templates` + `personas.generate` — deterministic persona generation, `early_stage_founder` fully specified.
+- `mnemos.probes.templates` + `probes.generate` — deterministic probe generation across the three axes with proper Update-event anchoring and latency clipping.
+- `mnemos.traces.disclosure` — deterministic per-session disclosure plan.
+- `mnemos.traces.prompts` — versioned system prompts for user simulator + stand-in agent (PROMPTS_VERSION = "v1.0").
+- `mnemos.traces.llm` — `LLMClient` protocol with `AnthropicLLMClient` (real) and `DeterministicMockLLMClient` (test) implementations.
+- `mnemos.traces.generate` — orchestration: alternating user/agent turns, end-token termination, min-turn floor, turn-budget cap, scheduled disclosures + updates recorded per session, probes attached to the trace.
+- `mnemos.traces.cli` — `python -m mnemos.traces.cli` entry point for single-trace and full-v1-set generation.
+- 37 unit tests pass (types, persona, probe, disclosure, trace orchestration).
 
-The deterministic data layer is complete. `generate_persona(EARLY_STAGE_FOUNDER, seed=2)` always produces the same Asha Patel; `generate_probes(persona, num_sessions=6)` always produces the same 13 probes spread across the three axes. Repo is live at https://github.com/avikMall/mnemos.
+The full pipeline now runs end-to-end with the mock client. With an `ANTHROPIC_API_KEY`, you can produce a real trace today:
+
+```bash
+python -m mnemos.traces.cli \
+    --archetype early_stage_founder --seed 2 \
+    --output-dir traces/sample
+```
+
+Repo is live at https://github.com/avikMall/mnemos.
 
 ## Up next, in order
 
-### 1. Trace generator (task #9)
+### 1. Sample-trace review (next, before generating at scale)
 
-This is the first part that touches an LLM. Plan:
+Run a single real-API trace and read it carefully. We want to verify:
+- The user simulator stays in character and doesn't break the fourth wall.
+- Scheduled disclosures actually get disclosed (not held back, not front-run).
+- Update events feel natural, not robotic.
+- The end-session token fires near a real conversational close, not mid-thought.
+- The stand-in agent stays generic (no Boardy-isms, no over-helping).
 
-- A **user simulator** prompt that takes a persona snapshot + the disclosure plan for the current session + scheduled updates. It produces user turns that disclose what's scheduled in a natural, conversational way without breaking character or front-running future disclosures.
-- A **stand-in agent** prompt that's deliberately vanilla — Mnemos is not testing this agent; it's just generating realistic conversational scaffolding so the memory system gets something to ingest. Prompt should be Boardy-shaped (warm, asks open questions) but NOT use Boardy's actual voice.
-- Each session: alternating user/agent turns until either a turn budget is hit or the user simulator decides the session has reached a natural close.
-- Pin model version in the trace JSON. Re-runs with the same model + seed should produce identical (or near-identical) traces; record any nondeterminism observed.
-- Cost guardrail: cap session turn count at ~12.
-
-Open question: do we want the stand-in agent to be the *same* model as the agent under test, or a different one? Lean toward "same family but vanilla prompting" — keeps cost predictable and avoids contamination.
+If anything's off, tighten the prompt in `traces/prompts.py`, bump `PROMPTS_VERSION`, and re-run. Plan: review 3 traces (different archetypes/seeds) before kicking off the full v1 generation.
 
 ### 2. Three baseline memory systems (task #4)
 

@@ -32,18 +32,23 @@ Existing memory benchmarks lean on synthetic long-context retrieval (LongBench, 
 ## Quickstart
 
 ```bash
-git clone https://github.com/<TBD>/mnemos
+git clone https://github.com/avikMall/mnemos
 cd mnemos
 pip install -e .
 export ANTHROPIC_API_KEY=...
 
-# Generate the v1 trace set (deterministic from seed)
-python -m mnemos.traces.generate --version v1
+# Generate one trace (low-cost first run)
+python -m mnemos.traces.cli \
+    --archetype early_stage_founder --seed 2 \
+    --output-dir traces/sample
 
-# Run a baseline
+# Generate the full v1 trace set (all archetypes × seeds)
+python -m mnemos.traces.cli --version v1 --output-dir traces/v1
+
+# (forthcoming) Run a baseline against a trace set
 python -m mnemos.baselines.vector_rag --traces traces/v1
 
-# Evaluate
+# (forthcoming) Score baseline outputs
 python -m mnemos.evals.run --baseline vector_rag --traces traces/v1
 ```
 
@@ -76,7 +81,7 @@ Highest-leverage areas: (a) additional memory architecture baselines, (b) additi
 If you use Mnemos in research or product work, please cite (placeholder until v1 results post is published):
 
 ```
-Malladi, A. (2026). Mnemos: A benchmark for long-horizon memory in conversational agents. https://github.com/<TBD>/mnemos
+Malladi, A. (2026). Mnemos: A benchmark for long-horizon memory in conversational agents. https://github.com/avikMall/mnemos
 ```
 
 ## License
